@@ -1,21 +1,27 @@
 import urllib.request, json 
+import ssl
+
+class MarketHistory():
+    def __init__(self, json):
+        self.data = []
+        for d in json:
+            self.data.append({'average': d['average'], 'date': d['date'], 'highest': d['highest'], 'lowest': d['lowest'], 'order_count': d['order_count'], 'volume': d['volume']})
+
+
+
 
 def getHistoricalMarketData(type_id):
+    context = ssl._create_unverified_context()
     url = f"https://esi.evetech.net/latest/markets/10000002/history/?datasource=tranquility&type_id={type_id}"
-    with urllib.request.urlopen(url) as url:
+    with urllib.request.urlopen(url, context=context) as url:
         data = json.loads(url.read().decode())
-    
-    parse_data = []
-    if len(data) >= 30:
-        parse_data = data[-30:]
-    else:
-        parse_data = data
-    return parse_data
+    return MarketHistory(data)
 
 
 def getMarketPrices():
+    context = ssl._create_unverified_context()
     urlSwagger = "https://esi.evetech.net/latest/markets/prices/?datasource=tranquility"
-    with urllib.request.urlopen(urlSwagger) as url:
+    with urllib.request.urlopen(urlSwagger, context=context) as url:
         data = json.loads(url.read().decode())
     marketPrices = {}
     for d in data:
@@ -54,8 +60,9 @@ def getFivePercentPrice(orders):
 
 def getOrders(type_id, sort_dir="up"):
     orders = []
+    context = ssl._create_unverified_context()
     urlSwagger = f"https://esi.evetech.net/latest/markets/10000002/orders/?datasource=tranquility&order_type=sell&page=1&type_id={type_id}"
-    with urllib.request.urlopen(urlSwagger) as url:
+    with urllib.request.urlopen(urlSwagger, context=context) as url:
         data = json.loads(url.read().decode())
         for d in data:
             orders.append( (d['price'], d['volume_remain']) )

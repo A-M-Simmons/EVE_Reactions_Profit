@@ -1,22 +1,58 @@
 from __future__ import print_function
 import pickle
 import os.path
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
+import csv
+#from googleapiclient.discovery import build
+#from google_auth_oauthlib.flow import InstalledAppFlow
+#from google.auth.transport.requests import Request
 from getBlueprintData import checkPickle, buildService, getBlueprints
-from esiAPI import getMarketPrices, getMarketOrderPrices, getSellPrice
+from esiAPI import getMarketPrices, getMarketOrderPrices, getSellPrice, getHistoricalMarketData
 from databaseConn import create_connection, getBlueprintIO
 from openpyxl import load_workbook
+from models import Blueprint
 
-# If modifying these scopes, delete the file token.pickle.
-SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
+def updateJITABuySellPrice(BPs):
+    # Market Prices for components
+    compMarketPrices =  getMarketOrderPrices(BPs)
+    marketPrices = getMarketPrices()
+    buyPrices = []
+    sellPrices = []
+    baseCosts = []
+    lines = []
+    for bp in BPs:
+        bcp = bp.getBaseCostPrice(marketPrices)
+        compB = bp.getPrice(compMarketPrices, "Buy")
+        buyP, sellP = bp.getOutputJitaPrice()
+        lines.append(f"{bp.id},{bcp},{compB},{sellP},{buyP}\n")
 
-# The ID and range of a sample spreadsheet.
-SAMPLE_SPREADSHEET_ID = ''
+    with open('jitaPrices.csv', 'w', newline='') as f:
+            f.writelines(lines)
 
-def updateReactions30dAvgPrice():
-    pass
+def updatePricesVolsCSV(BPs):
+    priceLines = []
+    volLines = []
+    for bp in BPs:
+        l = bp.getHistorical(30)
+        prices, vols = updateReactions30dAvgPrice(l)
+        priceLines.append(f"{bp.id},{prices}\n")
+        volLines.append(f"{bp.id},{vols}\n")
+    
+    with open('prices.csv', 'w', newline='') as f:
+        for line in priceLines:
+            f.writelines(line)
+
+    with open('volumes.csv', 'w', newline='') as f:
+        for line in volLines:
+            f.writelines(line)
+
+def updateReactions30dAvgPrice(l):
+    prices = ""
+    vols = ""
+    for t in l:
+        prices += f"{t[0]},"
+        vols += f"{t[1]},"
+    return prices, vols
+
 
 def updateBaseCost(service, spreadsheet_id, v):
     values = v
@@ -34,16 +70,20 @@ def getReactionBPs():
     bpIDsCells = sheet_ranges['A6:A50']
     bpIDs = []
     for bp in bpIDsCells:
-        bpIDs.append(bp[0].value)
+        bpIDs.append(Blueprint(bp[0].value))
     return bpIDs
 
 def main():    
-    conn = create_connection("test.db")
+    conn = create_connection("blueprintDatabase.db")
     reactionBPIDs = getReactionBPs()
     
     print("Calculating...")
     for bp in reactionBPIDs:
         bp.setIO(conn)
+        #bp.obtainHistorical()
+
+    updateJITABuySellPrice(reactionBPIDs)
+
 
 if __name__ == '__main__':
     main()
